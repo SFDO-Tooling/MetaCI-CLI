@@ -6,9 +6,6 @@ MetaCI CLI
 .. image:: https://img.shields.io/pypi/v/metaci_cli.svg
         :target: https://pypi.python.org/pypi/metaci_cli
 
-.. image:: https://img.shields.io/travis/jlantz/metaci_cli.svg
-        :target: https://travis-ci.org/jlantz/metaci_cli
-
 .. image:: https://readthedocs.org/projects/metaci-cli/badge/?version=latest
         :target: https://metaci-cli.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
@@ -28,7 +25,17 @@ A command line interface for MetaCI, a CI app run on Heroku for Salesforce devel
 Features
 --------
 
-* TODO
+* Auto-detects and loads CumulusCI's configuration when inside a project's local git repository
+* Deploy a MetaCI site to Heroku with `metaci site create`
+* Connect to an existing MetaCI site with `metaci site connect`
+* Interact with builds with `metaci build`
+* Interact with orgs with `metaci org`
+* Interact with plans with `metaci plans`
+
+Connecting to a Site
+--------------------
+
+Run `metaci site connect` from inside a CumulusCI project's git repository.  You will be prompted for the Base URL of the site as well as an API Token.  The API Token comes from Django REST Framework's [TokenAuthentication](http://www.django-rest-framework.org/api-guide/authentication/#tokenauthentication).  Admins can go to Token Auth -> Tokens in the site admin to generate tokens for users.
 
 Credits
 ---------
