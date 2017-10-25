@@ -88,7 +88,7 @@ class CliConfig(object):
         try:
             self._global_config = YamlGlobalConfig()
         except NotInProject as e:
-            raise click.ClickError(e.message)
+            raise click.ClickException(e.message)
 
     @property
     def project_config(self):
@@ -102,9 +102,9 @@ class CliConfig(object):
         except ProjectConfigNotFound:
             self._project_config = None
         except NotInProject as e:
-            raise click.ClickError(e.message)
+            raise click.ClickException(e.message)
         except ConfigError as e:
-            raise click.ClickError('Config Error: {}'.format(e.message))
+            raise click.ClickException('Config Error: {}'.format(e.message))
 
         # Set the keychain to lazy mode on the project so the first reference
         # to self.keychain doesn't actually initialize the keychain but 

@@ -7,8 +7,8 @@ import json
 from cumulusci.core.config import ScratchOrgConfig
 from cumulusci.core.exceptions import OrgNotFound
 from metaci_cli.cli.commands.main import main
-from metaci_cli.cli.util import get_repo_id
-from metaci_cli.cli.util import render_ordered_dict
+from metaci_cli.cli.util import lookup_repo
+from metaci_cli.cli.util import render_recursive
 from metaci_cli.cli.util import require_project_config
 from metaci_cli.cli.config import pass_config
 from metaci_cli.metaci_api import ApiClient
@@ -30,7 +30,7 @@ def prompt_org_name(repo_id, name, api_client, retry=None):
     res = api_client('orgs','list', params=params)
     if res['count'] > 0:
         if retry is False:
-            raise click.UsageError('A MetaCI org named {} already exists for this repository'.format(name))
+            raise click.ClickException('A MetaCI org named {} already exists for this repository'.format(name))
         else:
             click.echo('A MetaCI org named {} already exists for this repository.  Please select a different name'.format(name))
             name = click.prompt('Org Name') 
@@ -50,26 +50,28 @@ def org_create(config, name, org, repo):
 
     # Prompt for org name if not specified
     if not org:
+        click.echo('To create a MetaCI org, select one of your existing CumulusCI orgs.  The org information from your local CumulusCI keychain will be transferred to the MetaCI site.  You can use cci org scratch or cci org connect to create new CumulusCI orgs if needed.')
+        click.echo()
         default_org, org_config = config.keychain.get_default_org()
-        click.echo('Current cci orgs: ' + ', '.join(config.keychain.list_orgs()))
-        org = click.prompt('cci org name', default=default_org)
+        click.echo('Available Orgs: ' + ', '.join(config.keychain.list_orgs()))
+        org = click.prompt('Org', default=default_org)
 
     # Validate the org
     try:
         org_config = config.keychain.get_org(org)
     except OrgNotFound:
-        raise click.UsageError('The org {} is not configured in the local cci keychain'.format(org))
+        raise click.ClickException('The org {} is not configured in the local cci keychain'.format(org))
 
     org_name = name
     if not name:
         org_name = org
 
     # Filter by repository
-    repo_id = get_repo_id(api_client, config, repo, required=True)
+    repo_data = lookup_repo(api_client, config, repo, required=True)
    
-    name = prompt_org_name(repo_id, org_name, api_client) 
+    name = prompt_org_name(repo_data['id'], org_name, api_client) 
 
-    params['repo_id'] = repo_id
+    params['repo_id'] = repo_data['id']
     params['name'] = name
     params['scratch'] = isinstance(org_config, ScratchOrgConfig)
     
@@ -85,38 +87,10 @@ def org_create(config, name, org, repo):
 
     params['json'] = json.dumps(clean_org_config)
 
-    click.echo(render_ordered_dict(params))
-
     res = api_client('orgs', 'create', params=params)
-    click.echo(res)
+    click.echo()
+    click.echo('Org {} was successfully created.  Use metaci org info {} to see the org details.'.format(name, name))
 
-
-@click.command(name='list', help='Lists orgs')
-@click.option('--repo', help="Specify the repo in format OwnerName/RepoName")
-@pass_config
-def org_list(config, repo):
-    api_client = ApiClient(config)
-
-    params = {}
-
-    # Filter by repository
-    repo_id = get_repo_id(api_client, config, repo)
-    if repo_id:
-        params['repo'] = repo_id
-
-    res = api_client('orgs', 'list', params=params)
-
-    org_list_fmt = '{id:5} {name:24.24} {scratch:7} {repo[owner]}'
-    headers = {
-        'id': '#',
-        'name': 'Name',
-        'scratch': 'Scratch',
-        'repo': {'owner': 'Repo'},
-    }
-    click.echo(org_list_fmt.format(**headers))
-    #org_list_fmt += "/{repo[name]}"
-    for org in res['results']:
-        click.echo(org_list_fmt.format(**org))
 
 @click.command(name='info', help='Show info on a single org')
 @click.argument('name')
@@ -130,16 +104,43 @@ def org_info(config, name, repo):
     }
 
     # Filter by repository
-    repo_id = get_repo_id(api_client, config, repo, required=True)
-    params['repo'] = repo_id
+    repo_data = lookup_repo(api_client, config, repo, required=True)
+    params['repo'] = repo_data['id']
 
     # Look up the org
     res = api_client('orgs', 'list', params=params)
     if res['count'] == 0:
         raise click.ClickError('Org named {} not found'.format('name'))
 
-    click.echo(render_ordered_dict(res['results'][0]))
-    
+    click.echo(render_recursive(res['results'][0]))
+   
+ 
+@click.command(name='list', help='Lists orgs')
+@click.option('--repo', help="Specify the repo in format OwnerName/RepoName")
+@pass_config
+def org_list(config, repo):
+    api_client = ApiClient(config)
+
+    params = {}
+
+    # Filter by repository
+    repo_data = lookup_repo(api_client, config, repo)
+    if repo_data:
+        params['repo'] = repo_data['id']
+
+    res = api_client('orgs', 'list', params=params)
+
+    org_list_fmt = '{id:<5} {name:24.24} {scratch:7} {repo[owner]}'
+    headers = {
+        'id': '#',
+        'name': 'Name',
+        'scratch': 'Scratch',
+        'repo': {'owner': 'Repo'},
+    }
+    click.echo(org_list_fmt.format(**headers))
+    #org_list_fmt += "/{repo[name]}"
+    for org in res['results']:
+        click.echo(org_list_fmt.format(**org))
 
 
 org.add_command(org_create)

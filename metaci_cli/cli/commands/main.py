@@ -17,8 +17,7 @@ import requests
 @click.group()
 def main():
     """Console script for metaci_cli."""
-    click.echo("MetaCI v{}".format(metaci_cli.__version__))
-    click.echo("-----------------------------------------------------")
+    click.echo("MetaCI CLI v{}".format(metaci_cli.__version__))
     click.echo()
 
 if __name__ == "__main__":
