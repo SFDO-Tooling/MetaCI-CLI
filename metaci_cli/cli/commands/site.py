@@ -13,6 +13,7 @@ import webbrowser
 from cumulusci.core.config import ServiceConfig
 from cumulusci.core.exceptions import ServiceNotConfigured
 from metaci_cli.cli.commands.main import main
+from metaci_cli.cli.util import check_current_site
 from metaci_cli.cli.util import render_recursive
 from metaci_cli.cli.config import pass_config
 
@@ -35,13 +36,6 @@ def verify_overwrite(config):
         ),
         abort=True
     )
-    return service
-
-def check_current_site(config):
-    try:
-        service = config.keychain.get_service('metaci')
-    except ServiceNotConfigured:
-        raise click.UsageError('No site is currently connected.  Use metaci site connect or metaci site create to connect to a site')
     return service
 
 @click.command(name='browser', help='Opens the MetaCI site in a browser tab')

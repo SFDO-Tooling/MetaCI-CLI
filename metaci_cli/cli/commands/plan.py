@@ -3,7 +3,10 @@
 """Console script for metaci_cli."""
 
 import click
+import coreapi
+import webbrowser
 from metaci_cli.cli.commands.main import main
+from metaci_cli.cli.util import check_current_site
 from metaci_cli.cli.util import lookup_repo
 from metaci_cli.cli.util import render_recursive
 from metaci_cli.cli.config import pass_config
@@ -27,6 +30,30 @@ def prompt_org(api_client, config, repo_id):
     if org not in orgs:
         raise click.UsageError('Org {} not found.  Check metaci org list.'.format(org))
     return org
+
+@click.command(name='browser', help='Opens the plan on the MetaCI site in a browser tab')
+@click.argument('plan_id')
+@pass_config
+def plan_browser(config, plan_id):
+    api_client = ApiClient(config)
+
+    params = {
+        'id': plan_id,
+    }
+
+    # Look up the plan
+    try:
+        res = api_client('plans', 'read', params=params)
+    except coreapi.exceptions.ErrorMessage as e:
+        raise click.ClickException('Plan with id {} not found.  Use metaci plan list to see a list of plans and their ids'.format(plan_id))
+
+    service = check_current_site(config)
+    url = '{}/plans/{}'.format(
+        service.url,
+        res['id'],
+    )
+    click.echo('Opening browser to {}'.format(url))
+    webbrowser.open(url)
 
 @click.command(name='create', help='Create a new Plan to run builds on MetaCI')
 @pass_config
@@ -145,6 +172,7 @@ def plan_list(config, repo):
     for plan in res['results']:
         click.echo(plan_list_fmt.format(**plan))
 
+plan.add_command(plan_browser)
 plan.add_command(plan_create)
 plan.add_command(plan_list)
 main.add_command(plan)

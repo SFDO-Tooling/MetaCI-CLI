@@ -3,8 +3,11 @@
 """repo command subgroup for metaci CLI"""
 
 import click
+import coreapi
 import json
+import webbrowser
 from metaci_cli.cli.commands.main import main
+from metaci_cli.cli.util import check_current_site
 from metaci_cli.cli.util import lookup_repo
 from metaci_cli.cli.util import render_recursive
 from metaci_cli.cli.util import require_project_config
@@ -30,6 +33,18 @@ def check_existing_repo(owner, name, api_client):
         raise click.ClickException('A MetaCI repository named {} already exists'.format(name))
     return owner, name
 
+@click.command(name='browser', help='Opens the repo on the MetaCI site in a browser tab')
+@click.option('--repo', help="Specify the repo in format OwnerName/RepoName")
+@pass_config
+def repo_browser(config, repo):
+    require_project_config(config)
+    api_client = ApiClient(config)
+    repo = lookup_repo(api_client, config, repo, required=True)
+    service = check_current_site(config)
+    url = '{}/repo/{}/{}'.format(service.url, repo['owner'], repo['name'])
+    click.echo('Opening browser to {}'.format(url))
+    webbrowser.open(url)
+
 @click.command(name='create', help='Create a MetaCI repository from a local git repository')
 @click.option('--repo', help="Specify the repo in format OwnerName/RepoName")
 @click.option('--url', help="Specify the repo base url instead of prompting")
@@ -41,6 +56,7 @@ def repo_create(config, repo, url, public):
     api_client = ApiClient(config)
 
     # Prompt for repo owner and name if not specified
+    repo = lookup_repo(api_client, config, repo, required=False)
     if not repo:
         click.echo()
         click.echo('Enter a Github repository owner and name.  Example: for the repository https://github.com/OwnerName/RepoName, the owner is OwnerName and the repo name is RepoName.  Repository owner can be either a Github username or a Github organization')
@@ -112,6 +128,7 @@ def repo_list(config, owner, repo):
     for repo in res['results']:
         click.echo(repo_list_fmt.format(**repo))
 
+repo.add_command(repo_browser)
 repo.add_command(repo_create)
 repo.add_command(repo_info)
 repo.add_command(repo_list)

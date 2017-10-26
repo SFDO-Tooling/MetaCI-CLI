@@ -3,8 +3,11 @@
 """build command subgroup for metaci CLI"""
 
 import click
+import coreapi
+import webbrowser
 from metaci_cli.cli.commands.main import main
 from metaci_cli.cli.util import color_status
+from metaci_cli.cli.util import check_current_site
 from metaci_cli.cli.util import lookup_repo
 from metaci_cli.cli.util import render_recursive
 from metaci_cli.cli.config import pass_config
@@ -14,6 +17,27 @@ from metaci_cli.metaci_api import ApiClient
 def build():
     pass
 
+@click.command(name='browser', help='Opens the build on the MetaCI site in a browser tab')
+@click.argument('build_id')
+@pass_config
+def build_browser(config, build_id):
+    api_client = ApiClient(config)
+
+    params = {
+        'id': build_id,
+    }
+
+    # Look up the build
+    try:
+        res = api_client('builds', 'read', params=params)
+    except coreapi.exceptions.ErrorMessage as e:
+        raise click.ClickException('Build with id {} not found.  Use metaci build list to see a list of latest builds and their ids'.format(build_id))
+
+    service = check_current_site(config)
+    url = '{}/builds/{}'.format(service.url, res['id'])
+    click.echo('Opening browser to {}'.format(url))
+    webbrowser.open(url)
+    
 @click.command(name='info', help='Show info on a single build')
 @click.argument('build_id')
 @pass_config
@@ -25,11 +49,12 @@ def build_info(config, build_id):
     }
 
     # Look up the build
-    res = api_client('orgs', 'list', params=params)
-    if res['count'] == 0:
-        raise click.ClickError('Org named {} not found'.format('name'))
+    try:
+        res = api_client('builds', 'read', params=params)
+    except coreapi.exceptions.ErrorMessage as e:
+        raise click.ClickException('Build with id {} not found.  Use metaci build list to see a list of latest builds and their ids'.format(build_id))
 
-    click.echo(render_recursive(res['results'][0]))
+    click.echo(render_recursive(res))
 
 @click.command(name='list', help='Lists builds')
 @click.option('--repo', help="Specify the repo in format OwnerName/RepoName")
@@ -69,6 +94,7 @@ def build_list(config, repo, status):
         )
     
 
+build.add_command(build_browser)
 build.add_command(build_info)
 build.add_command(build_list)
 main.add_command(build)

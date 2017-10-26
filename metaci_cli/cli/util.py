@@ -26,6 +26,13 @@ def color_status(status, line=None):
         output += click.style('', reset=True)
     return output
 
+def check_current_site(config):
+    try:
+        service = config.keychain.get_service('metaci')
+    except ServiceNotConfigured:
+        raise click.UsageError('No site is currently connected.  Use metaci site connect or metaci site create to connect to a site')
+    return service
+
 def lookup_repo(api_client, config, repo=None, required=None, no_output=None):
     repo_info = {
         'name': None,
@@ -35,27 +42,29 @@ def lookup_repo(api_client, config, repo=None, required=None, no_output=None):
     # Parse repo string from CLI option in formation OwnerName/RepoName
     if repo:
         parts = repo.split('/')
-        if parts != 2:
+        if len(parts) != 2:
             raise click.UsageError('--repo must use the format OwnerName/RepoName')
         repo_info['owner'] = parts[0]
         repo_info['name'] = parts[1]
 
     repo_data = None
 
-    # If in a cci project git repo, auto filter that repo by default
-    try:
-        if config.project_config:
-            repo_info['name'] = config.project_config.repo_name
-            repo_info['owner'] = config.project_config.repo_owner
-        if repo_info['name'] and repo_info['owner']:
-            res = api_client('repos', 'list', params=repo_info)
-            if res['count'] == 1:
-                repo_data = res['results'][0]
-    except NotInProject:
-        pass
-    except ProjectConfigNotFound:
-        raise click.ClickException('Your local git repository does not appear to be configured for CumulusCI.  Configure CumulusCI for your project first using the documentation at http://cumulusci.readthedocs.io so you can use metaci on this repository.')
-   
+    if not repo:
+        # If in a cci project git repo, auto filter that repo by default
+        try:
+            if config.project_config:
+                repo_info['name'] = config.project_config.repo_name
+                repo_info['owner'] = config.project_config.repo_owner
+        except NotInProject:
+            pass
+        except ProjectConfigNotFound:
+            raise click.ClickException('Your local git repository does not appear to be configured for CumulusCI.  Configure CumulusCI for your project first using the documentation at http://cumulusci.readthedocs.io so you can use metaci on this repository.')
+    
+    if repo_info['name'] and repo_info['owner']:
+        res = api_client('repos', 'list', params=repo_info)
+        if res['count'] == 1:
+            repo_data = res['results'][0]
+
     if required and not repo_data: 
         if config.project_config.repo_user:
             raise click.UsageError('You are in a CumulusCI project but it appears the repository is not yet configured in MetaCI.  Use `metaci repo create` to add the repo.  You can also use --repo OwnerName/RepoName to manually specify a repository')

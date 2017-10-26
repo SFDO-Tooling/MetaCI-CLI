@@ -3,10 +3,13 @@
 """org command subgroup for metaci CLI"""
 
 import click
+import coreapi
 import json
+import webbrowser
 from cumulusci.core.config import ScratchOrgConfig
 from cumulusci.core.exceptions import OrgNotFound
 from metaci_cli.cli.commands.main import main
+from metaci_cli.cli.util import check_current_site
 from metaci_cli.cli.util import lookup_repo
 from metaci_cli.cli.util import render_recursive
 from metaci_cli.cli.util import require_project_config
@@ -36,6 +39,26 @@ def prompt_org_name(repo_id, name, api_client, retry=None):
             name = click.prompt('Org Name') 
             return prompt_org_name(repo_id, name, api_client, retry=False)
     return name
+
+@click.command(name='browser', help='Opens the org on the MetaCI site in a browser tab')
+@click.argument('org_name')
+@pass_config
+def org_browser(config, org_name):
+    api_client = ApiClient(config)
+
+    params = {
+        'name': org_name,
+    }
+
+    # Look up the build
+    res = api_client('orgs', 'list', params=params)
+    if res['count'] == 0:
+        raise click.ClickException('Org named {} not found.  Use metaci org list to see a list of available org names'.format(org_name))
+
+    service = check_current_site(config)
+    url = '{}/orgs/{}'.format(service.url, res['results'][0]['id'])
+    click.echo('Opening browser to {}'.format(url))
+    webbrowser.open(url)
 
 @click.command(name='create', help='Create a MetaCI org from a local cci keychain org')
 @click.option('--name', help="Override the org name (defaults to the cci keychain org name)")
@@ -110,7 +133,7 @@ def org_info(config, name, repo):
     # Look up the org
     res = api_client('orgs', 'list', params=params)
     if res['count'] == 0:
-        raise click.ClickError('Org named {} not found'.format('name'))
+        raise click.ClickError('Org named {} not found'.format(name))
 
     click.echo(render_recursive(res['results'][0]))
    
@@ -143,6 +166,7 @@ def org_list(config, repo):
         click.echo(org_list_fmt.format(**org))
 
 
+org.add_command(org_browser)
 org.add_command(org_create)
 org.add_command(org_info)
 org.add_command(org_list)
