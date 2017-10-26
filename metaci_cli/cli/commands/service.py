@@ -62,22 +62,34 @@ def service_create(config, name):
 
     api_client = ApiClient(config)
 
+    services = config.keychain.list_services()
+    existing = []
+    resp = api_client('services','list')
+    for service in resp['results']:
+        existing.append(service['name'])
+        if service['name'] in services:
+            services.remove(service['name'])
+
     # Prompt for service name if not specified
     if not name:
         click.echo('To create a MetaCI service, select one of your existing CumulusCI services.  The service information from your local CumulusCI keychain will be transferred to the MetaCI site.  You can use cci service list to see available services and cci service connect <service_name> to connect a service to the local cci keychain.')
         click.echo()
-        services = config.keychain.list_services()
         click.echo('Available Services: ' + ', '.join(services))
         name = click.prompt('Service')
 
-    # Validate the service
+    # Validate the service name
+    if name not in services:
+        if name in existing:
+            raise click.ClickException('Service {} already exists.  Available services are: {}'.format(name, ', '.join(services)))
+        raise click.ClickException('Service {} is invalid.  Available services are: {}'.format(name, ', '.join(services)))
+
+    # Validate the service exists in the cci keychain
     try:
         service_config = config.keychain.get_service(name)
     except ServiceNotConfigured:
         raise click.ClickException('The service {} is not configured in the local cci keychain.  Use cci service connect {}'.format(service, service))
     except ServiceNotValid:
         raise click.ClickException('The service {} is not a valid cci service name.  If this is a custom service for the project, you need to first configure the service in the project cumulusci.yml file.'.format(service))
-
 
     params = {}
     params['name'] = name
