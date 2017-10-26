@@ -18,7 +18,7 @@ def color_status(status, line=None):
     elif status == 'success':
         output = click.style(line, fg='green')
         output += click.style('', reset=True)
-    elif status == 'failed':
+    elif status == 'fail':
         output = click.style(line, fg='yellow')
         output += click.style('', reset=True)
     elif status == 'error':
@@ -32,6 +32,21 @@ def check_current_site(config):
     except ServiceNotConfigured:
         raise click.UsageError('No site is currently connected.  Use metaci site connect or metaci site create to connect to a site')
     return service
+
+def get_or_create_branch(api_client, name, repo_id):
+    params = {
+        'repo': 'id',
+        'name': name,
+    }
+    resp = api_client('branches', 'list', params=params)
+    if resp['count'] == 0:
+        params = {
+            'repo_id': repo_id,
+            'name': name,
+        }
+        return api_client('branches', 'create', params=params)
+    else:
+        return resp['results'][0]
 
 def lookup_repo(api_client, config, repo=None, required=None, no_output=None):
     repo_info = {

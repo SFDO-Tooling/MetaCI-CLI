@@ -45,29 +45,37 @@ def repo_browser(config, repo):
     click.echo('Opening browser to {}'.format(url))
     webbrowser.open(url)
 
-@click.command(name='create', help='Create a MetaCI repository from a local git repository')
+@click.command(name='add', help='Create a MetaCI repository from a local git repository')
 @click.option('--repo', help="Specify the repo in format OwnerName/RepoName")
 @click.option('--url', help="Specify the repo base url instead of prompting")
 @click.option('--public', is_flag=True, default=False, help="Should this repository's builds and plans be visible to anonymous users?")
 @pass_config
-def repo_create(config, repo, url, public):
+def repo_add(config, repo, url, public):
     require_project_config(config)
 
     api_client = ApiClient(config)
 
+    owner = None
+    name = None
+    url = None
     # Prompt for repo owner and name if not specified
-    repo = lookup_repo(api_client, config, repo, required=False)
-    if not repo:
-        click.echo()
-        click.echo('Enter a Github repository owner and name.  Example: for the repository https://github.com/OwnerName/RepoName, the owner is OwnerName and the repo name is RepoName.  Repository owner can be either a Github username or a Github organization')
-        owner = click.prompt('Owner')
-        name = click.prompt('Name')
-    else:
+    repo_data = lookup_repo(api_client, config, repo, required=False, no_output=True)
+    if repo:
         parts = repo.split('/')
         if len(parts) != 2:
             raise click.ClickException('--repo must be in the format OwnerName/RepoName')
         owner = parts[0]
         name = parts[1]
+    else:
+        owner = config.project_config.repo_owner
+        name = config.project_config.repo_name
+        url = 'https://github.com/{}/{}'.format(owner, name)
+
+    if not owner or not name:
+        click.echo()
+        click.echo('Enter a Github repository owner and name.  Example: for the repository https://github.com/OwnerName/RepoName, the owner is OwnerName and the repo name is RepoName.  Repository owner can be either a Github username or a Github organization')
+        owner = click.prompt('Owner')
+        name = click.prompt('Name')
 
     # Validate the repo
     check_existing_repo(owner, name, api_client) 
@@ -129,7 +137,7 @@ def repo_list(config, owner, repo):
         click.echo(repo_list_fmt.format(**repo))
 
 repo.add_command(repo_browser)
-repo.add_command(repo_create)
+repo.add_command(repo_add)
 repo.add_command(repo_info)
 repo.add_command(repo_list)
 main.add_command(repo)

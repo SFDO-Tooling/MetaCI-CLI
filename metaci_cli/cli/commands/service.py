@@ -54,10 +54,10 @@ def service_browser(config, name):
     click.echo('Opening browser to {}'.format(url))
     webbrowser.open(url)
 
-@click.command(name='create', help='Create a MetaCI service from a local cci keychain service')
+@click.command(name='add', help='Create a MetaCI service from a local cci keychain service')
 @click.option('--name', help="Specify the service name from your local cci keychain to create in MetaCI")
 @pass_config
-def service_create(config, name):
+def service_add(config, name):
     require_project_config(config)
 
     api_client = ApiClient(config)
@@ -136,7 +136,7 @@ def service_list(config):
 
 
 service.add_command(service_browser)
-service.add_command(service_create)
+service.add_command(service_add)
 service.add_command(service_info)
 service.add_command(service_list)
 main.add_command(service)

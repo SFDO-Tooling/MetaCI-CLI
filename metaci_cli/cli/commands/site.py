@@ -17,6 +17,91 @@ from metaci_cli.cli.util import check_current_site
 from metaci_cli.cli.util import render_recursive
 from metaci_cli.cli.config import pass_config
 
+app_shape_choice = click.Choice(['dev','staging','prod'])
+
+def prompt_app_shape(shape=None):
+    # App Shape
+    if shape:
+        app_shape = shape
+    else:
+        click.echo()
+        click.echo(click.style('# Heroku App Shape', bold=True, fg='blue'))
+        click.echo('Select the Heroku app shape you want to deploy.  Available options:')
+        click.echo('  - dev: Runs on free Heroku resources with build concurrency of 1')
+        click.echo('  - staging: Runs on paid Heroku resources with fixed build concurrency of X')
+        click.echo('  - prod: Runs on paid Heroku resources auto-scaled build concurrency via Hirefire.io (paid add on configured separately)')
+        app_shape = click.prompt('App Shape', type=app_shape_choice, default='dev')
+
+    num_workers = None
+    if app_shape == 'staging':
+        click.echo()
+        click.echo(click.style('# Number of Build Workers', bold=True, fg='blue'))
+        click.echo('Enter the number of build worker dynos that should always be running.  This is your build concurrency.')
+        click.echo(click.style('NOTE: The staging app shape uses standard-1x dynos which are paid dynos.  Increasing this number will increase the number of paid dynos that are run.', fg='yellow'))
+        num_workers = click.prompt('Number of Workers', type=int, default=1)
+
+    return app_shape, num_workers
+
+def set_app_shape(app, shape, num_workers=None):
+    if shape == 'dev':
+        click.echo(click.style('Setting up dev app shape with free Heroku dynos', fg='yellow'))
+        click.echo(click.style('- Set scale to web=1 dev_worker=1 worker=0 worker_short=0', fg='yellow'))
+        app.batch_scale_formation_processes({
+            'web': 1,
+            'dev_worker': 1,
+            'worker': 0,
+            'worker_short': 0,
+        })
+        click.echo(click.style('- Switching to free dynos', fg='yellow'))
+        app.batch_resize_formation_processes({
+            'web': 'free',
+            'dev_worker': 'free',
+            'worker': 'free',
+            'worker_short': 'free',
+        })
+    elif shape == 'prod' or shape == 'staging':
+        if num_workers is None:
+            num_workers = 1
+        click.echo(click.style('Setting up {} app shape with paid standard-1x Heroku dynos'.format(shape), fg='yellow'))
+        app.batch_resize_formation_processes({
+            'web': 'standard-1x',
+            'dev_worker': 'standard-1x',
+            'worker': 'standard-1x',
+            'worker_short': 'standard-1x',
+        })
+        app.batch_scale_formation_processes({
+            'web': 1,
+            'dev_worker': 1,
+            'worker': 0,
+        })
+        formation = app.process_formation()
+        formation['worker_short'].scale(1)
+        if shape == 'prod':
+            # Prod shape sets worker scale at 0 to let Hirefire.io scale up/down as needed
+            app.scale_formation_process('worker', 0)
+            click.echo(click.style('- Set scale to web=1 dev_worker=1 worker=0 worker_short=1', fg='yellow'))
+        else:
+            app.scale_formation_process('worker', num_workers)
+            click.echo(click.style('- Set scale to web=1 dev_worker=0 worker={} worker_short=1'.format(num_workers), fg='yellow'))
+    else:
+        raise click.ClickException('Unknown app shape: {}'.format(shape))
+
+def prompt_heroku_token():
+    # Heroku API Token
+    try:
+        token = subprocess.check_output(['heroku','auth:token']).strip()
+    except:
+        click.echo()
+        click.echo(click.style('# Heroku API Token', bold=True, fg='blue'))
+        click.echo('Enter your Heroku API Token.  If you do not have a token, go to the Account page in Heroku and use the API Token section: https://dashboard.heroku.com/account')
+        click.echo(click.style(
+            'NOTE: For security purposes, your input will be hidden.  Paste your API Token and hit Enter to continue.',
+            fg='yellow',
+        ))
+        token = click.prompt('API Token', hide_input=True)
+
+    return heroku3.from_key(token)
+
 @click.group('site')
 def site():
     pass
@@ -45,16 +130,14 @@ def site_browser(config):
     click.echo('Opening browser to {}'.format(service.url))
     webbrowser.open(service.url)
 
-app_shape_choice = click.Choice(['dev','staging','prod'])
-
-@click.command(name='create', help='Deploy a new Heroku app running MetaCI')
+@click.command(name='add', help='Deploy a new Heroku app running MetaCI')
 @click.option('--name', help='Specify an app name instead of prompting for it')
 @click.option('--shape', 
     help='Specify an app shape instead of prompting for it', 
     type=app_shape_choice,
 )
 @pass_config
-def site_create(config, name, shape):
+def site_add(config, name, shape):
     if not config.project_config:
         raise click.ClickException('You must be in a CumulusCI configured local git repository.')
    
@@ -82,7 +165,7 @@ def site_create(config, name, shape):
         ))
         token = click.prompt('API Token', hide_input=True)
 
-    heroku_api = heroku3.from_key(token)
+    heroku_api = prompt_heroku_token()
 
     # App Name
     if not name:
@@ -93,16 +176,7 @@ def site_create(config, name, shape):
     else:
         payload['app']['name'] = name
 
-    # App Shape
-    if not shape:
-        click.echo()
-        click.echo(click.style('# Heroku App Shape', bold=True, fg='blue'))
-        click.echo('Select the Heroku app shape you want to deploy.  Available options:')
-        click.echo('  - dev: Runs on free Heroku resources with build concurrency of 1')
-        click.echo('  - staging: Runs on paid Heroku resources with fixed build concurrency of X')
-        click.echo('  - prod: Runs on paid Heroku resources auto-scaled build concurrency via Hirefire.io (paid add on configured separately)')
-        app_shape = click.prompt('App Shape', type=app_shape_choice, default='dev')
-
+    app_shape, num_workers = prompt_app_shape(shape)
     # Hirefire Token
     if app_shape == 'prod':
         click.echo()
@@ -234,11 +308,12 @@ def site_create(config, name, shape):
     else:
         raise click.ClickException('Received an unknown status from the Heroku app-setups API.  Full API response: {}'.format(check_data))
 
+    heroku_app = heroku_api.app(check_data['app']['id'])
+
     # Apply the app shape
-    if app_shape == 'staging':
-        pass
-    elif app_shape == 'prod':
-        pass
+    click.echo()
+    click.echo(click.style('# Applying App Shape', bold=True, fg='blue'))
+    set_app_shape(heroku_app, app_shape, num_workers)
 
     click.echo()
     click.echo(click.style('# Create Admin User', bold=True, fg='blue'))
@@ -250,7 +325,6 @@ def site_create(config, name, shape):
     click.echo()
     click.echo(click.style('Creating admin user:', fg='yellow'))
     command = 'python manage.py autoadminuser {FROM_EMAIL}'.format(**env)
-    heroku_app = app = heroku_api.app(check_data['app']['id'])
     admin_output, dyno = app.run_command(command, printout=True, env={'ADMINUSER_PASS': password})
     click.echo(admin_output.splitlines()[-1:])
     
@@ -267,6 +341,7 @@ def site_create(config, name, shape):
         service = ServiceConfig({
             'url': env['SITE_URL'],
             'token': api_token,
+            'app_name': check_data['app']['name'],
         })
         config.keychain.set_service('metaci', service)
         click.echo(click.style('Successfully connected metaci to the new site at {SITE_URL}'.format(**env), fg='green', bold=True))
@@ -276,10 +351,23 @@ def site_create(config, name, shape):
     
 
 @click.command(name='connect', help='Connects to an existing MetaCI instance')
+@click.option('--app-name', help='Provide the Heroku app name to connect to instead of prompting')
 @pass_config
-def site_connect(config):
+def site_connect(config, app_name):
     verify_overwrite(config)
-    url = click.prompt('Site Base URL')
+
+    if not app_name:
+        click.echo()
+        click.echo(click.style('# Heroku App?', bold=True, fg='blue'))
+        click.echo('Are you connecting to an instance of MetaCI running on Heroku?')
+        if click.confirm('Heroku App?', default=True):
+            app_name = click.prompt('Heroku App Name')
+
+    default_url = None
+    if app_name:
+        default_url = 'https://{}.herokuapp.com'.format(app_name)
+    url = click.prompt('Site Base URL', default=default_url)
+
     click.echo('Contact your MetaCI administrator to get an API Token.  Tokens can be created by administrators in the admin panel under Auth Tokens -> Tokensi.')
     click.echo(click.style(
         'NOTE: For security purposes, your input will be hidden.  Paste your API Token and hit Enter to continue.',
@@ -287,6 +375,7 @@ def site_connect(config):
     ))
     token = click.prompt('API Token', hide_input=True)
     service = ServiceConfig({
+        'app_name': app_name,
         'url': url,
         'token': token,
     })
@@ -298,9 +387,26 @@ def site_info(config):
     service = check_current_site(config)
     render_recursive(service.config)
 
+@click.command(name='shape', help='Applies an app shape to the current Heroku app')
+@click.option('--shape', 
+    help='Specify an app shape instead of prompting for it', 
+    type=app_shape_choice,
+)
+@pass_config
+def site_shape(config, shape):
+    service = check_current_site(config)
+    if not service.app_name:
+        raise click.ClickException('The current site is not configured as a Heroku App.  You can only run metaci site shape against MetaCI running on Heroku.  If your MetaCI site is running on Heroku, use metaci site connect to re-connect to the site.')
 
+    heroku_api = prompt_heroku_token()
+    heroku_app = heroku_api.app(service.app_name)
+    app_shape, num_workers = prompt_app_shape(shape)
+    set_app_shape(heroku_app, app_shape, num_workers)
+
+
+site.add_command(site_add)
 site.add_command(site_browser)
-site.add_command(site_create)
 site.add_command(site_connect)
 site.add_command(site_info)
+site.add_command(site_shape)
 main.add_command(site)

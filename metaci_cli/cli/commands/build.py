@@ -40,8 +40,11 @@ def build_browser(config, build_id):
     
 @click.command(name='info', help='Show info on a single build')
 @click.argument('build_id')
+@click.option('--log', is_flag=True, help="If set, only outputs the build log")
+@click.option('--flow-log', is_flag=True, help="If set, only outputs logs from all CumulusCI flows run by this build")
+@click.option('--flow', help="Used with --flow-log, limits the log output to only the specified flow")
 @pass_config
-def build_info(config, build_id):
+def build_info(config, build_id, log, flow_log, flow):
     api_client = ApiClient(config)
 
     params = {
@@ -50,11 +53,26 @@ def build_info(config, build_id):
 
     # Look up the build
     try:
-        res = api_client('builds', 'read', params=params)
+        build_res = api_client('builds', 'read', params=params)
     except coreapi.exceptions.ErrorMessage as e:
         raise click.ClickException('Build with id {} not found.  Use metaci build list to see a list of latest builds and their ids'.format(build_id))
 
-    click.echo(render_recursive(res))
+    if log:
+        click.echo(build_res['log'])
+    elif flow_log:
+        params = {
+            'build': build_id
+        }
+        if flow:
+            params['flow'] = flow
+        build_flow_res = api_client('build_flows', 'list', params=params)
+        for build_flow in build_flow_res['results']:
+            click.echo()
+            click.echo(click.style('{}:'.format(build_flow['flow']), bold=True, fg='blue'))
+            click.echo(build_flow['log'])
+        
+    else:
+        click.echo(render_recursive(build_res))
 
 @click.command(name='list', help='Lists builds')
 @click.option('--repo', help="Specify the repo in format OwnerName/RepoName")

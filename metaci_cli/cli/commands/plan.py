@@ -7,6 +7,7 @@ import coreapi
 import webbrowser
 from metaci_cli.cli.commands.main import main
 from metaci_cli.cli.util import check_current_site
+from metaci_cli.cli.util import get_or_create_branch
 from metaci_cli.cli.util import lookup_repo
 from metaci_cli.cli.util import render_recursive
 from metaci_cli.cli.config import pass_config
@@ -55,9 +56,9 @@ def plan_browser(config, plan_id):
     click.echo('Opening browser to {}'.format(url))
     webbrowser.open(url)
 
-@click.command(name='create', help='Create a new Plan to run builds on MetaCI')
+@click.command(name='add', help='Create a new Plan to run builds on MetaCI')
 @pass_config
-def plan_create(config):
+def plan_add(config):
     if not config.project_config:
         raise click.UsageError('You must be inside a local git repository configured for CumulusCI.  No CumulusCI configuration was detected in the local directory')
 
@@ -143,6 +144,27 @@ def plan_create(config):
     click.echo('Created plan {} with the following configuration'.format(name))
     render_recursive(res)
 
+@click.command(name='info', help='Show info for a plan')
+@click.argument('plan_id')
+@pass_config
+def plan_info(config, plan_id):
+    api_client = ApiClient(config)
+
+    params = {
+        'id': plan_id
+    }
+
+    # Filter by repository
+    repo_data = lookup_repo(api_client, config, None, required=True)
+    params['repo'] = repo_data['id']
+
+    # Look up the plan
+    res = api_client('plans', 'list', params=params)
+    if res['count'] == 0:
+        raise click.ClickError('Plan with id {} not found for this repository'.format(name))
+
+    click.echo(render_recursive(res['results'][0]))
+
 
 @click.command(name='list', help='Lists plans')
 @click.option('--repo', help="Specify the repo in format OwnerName/RepoName")
@@ -172,7 +194,81 @@ def plan_list(config, repo):
     for plan in res['results']:
         click.echo(plan_list_fmt.format(**plan))
 
+@click.command(name='run', help='Run a plan')
+@click.argument('plan_id')
+@click.option('--branch', help="Specify a branch other than the current local branch")
+@click.option('--commit', help="Specify a remote Github commit sha to build instead of the branch HEAD")
+#@click.option('--keep-org', is_flag=True, help="If set, plans that generate scratch orgs will not delete the org.  This is useful for manual testing and debugging.  Use metaci build org_login <build_id> to log into the org once it is created.")
+@pass_config
+def plan_run(config, plan_id, branch, commit):
+    api_client = ApiClient(config)
+
+    params = {
+        'id': plan_id,
+    }
+
+    # Look up the plan
+    try:
+        plan_res = api_client('plans', 'read', params=params)
+    except coreapi.exceptions.ErrorMessage as e:
+        raise click.ClickException('Plan with id {} not found.  Use metaci plan list to see a list of plans and their ids'.format(plan_id))
+    
+    # Validate that the plan is on the right repo
+    if config.project_config.repo_name != plan_res['repo']['name']:
+        raise click.ClickException(
+            'Plan {} is against repository {}/{} and your local repository is {}/{}'.format(
+                plan_id,
+                plan_res['repo']['owner'],
+                plan_res['repo']['name'],
+                config.project_config.repo_owner,
+                config.project_config.repo_name,
+            )
+        )
+
+    # Look up the rpeo
+    repo_data = lookup_repo(api_client, config, None, required=True)
+
+    # Look up the plan org
+    org_params = {
+        'repo': repo_data['id'],
+        'name': plan_res['org'],
+    }
+    org_res = api_client('orgs', 'list', params=org_params)
+    if org_res['count'] == 0:
+        raise click.ClickException('The plan org "{}" does not exist in MetaCI.  Use metaci org create to create the org.'.format(plan_res['org']))
+    org_data = org_res['results'][0]
+
+    # Look up the branch
+    if not branch:
+        branch = config.project_config.repo_branch
+    branch_data = get_or_create_branch(api_client, branch, repo_data['id'])
+
+    # Determine the commit
+    if not commit:
+        gh = config.project_config.get_github_api()
+        gh_repo = gh.repository(
+            config.project_config.repo_owner,
+            config.project_config.repo_name,
+        )
+        branch = gh_repo.branch(branch)
+        commit = branch.commit.sha
+
+    # Create the build
+    build_params = {
+        'repo_id': repo_data['id'],
+        'org_id': org_data['id'],
+        'plan_id': plan_id,
+        'branch_id': branch_data['id'],
+        'commit': commit,
+    }
+    resp = api_client('builds', 'create', params=build_params)
+    click.echo(click.style('Build {} created successfully'.format(resp['id']), bold=True, fg='green'))
+    click.echo('Use metaci build info {} to monitor the build or metaci build list to monitor multiple builds'.format(resp['id']))
+
+
+plan.add_command(plan_add)
 plan.add_command(plan_browser)
-plan.add_command(plan_create)
+plan.add_command(plan_info)
 plan.add_command(plan_list)
+plan.add_command(plan_run)
 main.add_command(plan)

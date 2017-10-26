@@ -60,12 +60,12 @@ def org_browser(config, org_name):
     click.echo('Opening browser to {}'.format(url))
     webbrowser.open(url)
 
-@click.command(name='create', help='Create a MetaCI org from a local cci keychain org')
+@click.command(name='add', help='Create a MetaCI org from a local cci keychain org')
 @click.option('--name', help="Override the org name (defaults to the cci keychain org name)")
 @click.option('--org', help="Specify the org name from your local cci keychain to create in MetaCI")
 @click.option('--repo', help="Specify the repo in format OwnerName/RepoName")
 @pass_config
-def org_create(config, name, org, repo):
+def org_add(config, name, org, repo):
     require_project_config(config)
 
     api_client = ApiClient(config)
@@ -167,7 +167,7 @@ def org_list(config, repo):
 
 
 org.add_command(org_browser)
-org.add_command(org_create)
+org.add_command(org_add)
 org.add_command(org_info)
 org.add_command(org_list)
 main.add_command(org)
