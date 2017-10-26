@@ -19,7 +19,7 @@ from metaci_cli.cli.config import pass_config
 
 app_shape_choice = click.Choice(['dev','staging','prod'])
 
-def prompt_app_shape(shape=None):
+def prompt_app_shape(shape=None, num_workers=None):
     # App Shape
     if shape:
         app_shape = shape
@@ -32,8 +32,7 @@ def prompt_app_shape(shape=None):
         click.echo('  - prod: Runs on paid Heroku resources auto-scaled build concurrency via Hirefire.io (paid add on configured separately)')
         app_shape = click.prompt('App Shape', type=app_shape_choice, default='dev')
 
-    num_workers = None
-    if app_shape == 'staging':
+    if app_shape == 'staging' and num_workers is None:
         click.echo()
         click.echo(click.style('# Number of Build Workers', bold=True, fg='blue'))
         click.echo('Enter the number of build worker dynos that should always be running.  This is your build concurrency.')
@@ -388,19 +387,20 @@ def site_info(config):
     render_recursive(service.config)
 
 @click.command(name='shape', help='Applies an app shape to the current Heroku app')
+@click.option('--num-workers', help='Specify the number of workers for the staging app shape instead of prompting')
 @click.option('--shape', 
     help='Specify an app shape instead of prompting for it', 
     type=app_shape_choice,
 )
 @pass_config
-def site_shape(config, shape):
+def site_shape(config, shape, num_workers):
     service = check_current_site(config)
     if not service.app_name:
         raise click.ClickException('The current site is not configured as a Heroku App.  You can only run metaci site shape against MetaCI running on Heroku.  If your MetaCI site is running on Heroku, use metaci site connect to re-connect to the site.')
 
     heroku_api = prompt_heroku_token()
     heroku_app = heroku_api.app(service.app_name)
-    app_shape, num_workers = prompt_app_shape(shape)
+    app_shape, num_workers = prompt_app_shape(shape, num_workers)
     set_app_shape(heroku_app, app_shape, num_workers)
 
 
