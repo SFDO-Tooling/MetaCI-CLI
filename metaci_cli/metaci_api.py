@@ -1,26 +1,23 @@
 import click
 from requests.exceptions import ConnectionError
-from coreapi import Client
-from coreapi.transports import HTTPTransport
+import coreapi
 from cumulusci.core.exceptions import ServiceNotConfigured
 
 class ApiClient(object):
     def __init__(self, config):
         headers = {}
         try:
-            service = config.keychain.get_service('metaci')            
-            headers['Authorization'] = 'Token {}'.format(service.token)
+            self.service = config.keychain.get_service('metaci')            
         except ServiceNotConfigured:
             raise click.ClickException('You must have a MetaCI site configured.  Use metaci site connect to configure an existing site or metaci site create to deploy a new Heroku app running MetaCI.')
-            
-        self.client = Client(transports=[
-            HTTPTransport(headers=headers),
-        ])
+           
+        auth = coreapi.auth.TokenAuthentication(self.service.token, scheme='Token')
+        self.client = coreapi.Client(auth=auth)
         self._load_document()
 
     def _load_document(self):
         try:
-            self.document = self.client.get('http://localhost:8000/api/schema')
+            self.document = self.client.get(self.service.url + '/api/schema')
         except ConnectionError as e:
             self._handle_connection_error(e)
     

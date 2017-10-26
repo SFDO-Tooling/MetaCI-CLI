@@ -3,8 +3,11 @@
 """Console script for metaci_cli."""
 
 import click
+import heroku3
 import json
+import os
 import requests
+import subprocess
 import time
 import webbrowser
 from cumulusci.core.config import ServiceConfig
@@ -68,24 +71,29 @@ def site_create(config, name, shape):
         'app': {},
         'source_blob': {
             'url': 'https://github.com/SalesforceFoundation/mrbelvedereci/tarball/feature/api/',
-        },
+       },
     }
     env = {} 
 
     # Heroku API Token
-    click.echo()
-    click.echo(click.style('# Heroku API Token', bold=True))
-    click.echo('Enter your Heroku API Token.  If you do not have a token, go to the Account page in Heroku and use the API Token section: https://dashboard.heroku.com/account')
-    click.echo(click.style(
-        'NOTE: For security purposes, your input will be hidden.  Paste your API Token and hit Enter to continue.',
-        fg='yellow',
-    ))
-    token = click.prompt('API Token', hide_input=True)
+    try:
+        token = subprocess.check_output(['heroku','auth:token']).strip()
+    except:
+        click.echo()
+        click.echo(click.style('# Heroku API Token', bold=True, fg='blue'))
+        click.echo('Enter your Heroku API Token.  If you do not have a token, go to the Account page in Heroku and use the API Token section: https://dashboard.heroku.com/account')
+        click.echo(click.style(
+            'NOTE: For security purposes, your input will be hidden.  Paste your API Token and hit Enter to continue.',
+            fg='yellow',
+        ))
+        token = click.prompt('API Token', hide_input=True)
+
+    heroku_api = heroku3.from_key(token)
 
     # App Name
     if not name:
         click.echo()
-        click.echo(click.style('# Heroku App Name'))
+        click.echo(click.style('# Heroku App Name', bold=True, fg='blue'))
         click.echo('Specify the name of the Heroku app you want to create.')
         payload['app']['name'] = click.prompt('App Name')
     else:
@@ -94,22 +102,36 @@ def site_create(config, name, shape):
     # App Shape
     if not shape:
         click.echo()
-        click.echo(click.style('# Heroku App Shape'))
+        click.echo(click.style('# Heroku App Shape', bold=True, fg='blue'))
         click.echo('Select the Heroku app shape you want to deploy.  Available options:')
         click.echo('  - dev: Runs on free Heroku resources with build concurrency of 1')
         click.echo('  - staging: Runs on paid Heroku resources with fixed build concurrency of X')
         click.echo('  - prod: Runs on paid Heroku resources auto-scaled build concurrency via Hirefire.io (paid add on configured separately)')
-        app_shape = click.prompt('App Shape', type=app_shape_choice)
+        app_shape = click.prompt('App Shape', type=app_shape_choice, default='dev')
+
+    # Hirefire Token
+    if app_shape == 'prod':
+        click.echo()
+        click.echo(click.style('# Hirefire Token', bold=True, fg='blue'))
+        click.echo('The prod app shape requires the use of Hirefire.io to scale the build worker dynos.  You will need to have an account on Hirefire.io and get the API token from your account.')
+        env['HIREFIRE_TOKEN'] = click.prompt('Hirefire API Token')
 
     # Salesforce DX
     click.echo()
-    click.echo(click.style('# Salesforce DX Configuration'))
+    click.echo(click.style('# Salesforce DX Configuration', bold=True, fg='blue'))
     click.echo('The following prompts collect information from your local Salesforce DX configuration to use to configure MetaCI to use sfdx')
+
     # Salesforce DX Hub Key
     click.echo()
     click.echo('MetaCI uses JWT to connect to your Salesforce DX devhub.  Please enter the path to your local private key file.  If you have not set up JWT for your devhub, refer to the documentation: https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_auth_jwt_flow.htm')
-    sfdx_private_key = click.prompt('Path to private key', type=click.File())
-    env['SFDX_HUB_KEY'] = sfdx_private_key.read()
+    sfdx_private_key = click.prompt(
+        'Path to private key',
+        type=click.Path(readable=True, dir_okay=False),
+        default=os.path.expanduser('~/.ssh/sfdx_server.key'),
+    )
+    with open(sfdx_private_key, 'r') as f:
+        env['SFDX_HUB_KEY'] = f.read()
+
     # Salesforce DX Client ID
     click.echo()
     click.echo('Enter the Connected App Client ID you used for the JWT authentication flow to the Salesforce DX devhub.')
@@ -118,10 +140,21 @@ def site_create(config, name, shape):
         fg='yellow',
     ))
     env['SFDX_CLIENT_ID'] = click.prompt('Client ID', hide_input=True)
+
     # Salesforce DX Username
-    click.echo()
-    click.echo('Enter the username MetaCI should use for JWT authentication to the Salesforce DX devhub.')
-    env['SFDX_HUB_USERNAME'] = click.prompt('Username')
+    try:
+        devhub = subprocess.check_output(['sfdx','force:config:get', 'defaultdevhubusername', '--json']).strip()
+        devhub = json.loads(devhub)
+        devhub = devhub['result'][0]['value']
+    except:
+        devhub = None
+   
+    if devhub:
+        env['SFDX_HUB_USERNAME'] = devhub
+    else: 
+        click.echo()
+        click.echo('Enter the username MetaCI should use for JWT authentication to the Salesforce DX devhub.')
+        env['SFDX_HUB_USERNAME'] = click.prompt('Username')
 
     # Get connected app info from CumulusCI keychain
     connected_app = config.keychain.get_connected_app()
@@ -158,8 +191,10 @@ def site_create(config, name, shape):
     status = app_setup['status']
     click.echo()
     click.echo('Status: {}'.format(status))
+    click.echo(click.style('Creating app:', fg='yellow'))
     i = 1
-    with click.progressbar(length=100) as bar:
+    build_started = False
+    with click.progressbar(length=200) as bar:
         while status in ['pending']:
             check_resp = requests.get(
                 'https://api.heroku.com/app-setups/{id}'.format(**app_setup),
@@ -168,21 +203,39 @@ def site_create(config, name, shape):
             if check_resp.status_code != 200:
                 raise click.ClickException('Failed to check status of app creation.  Reponse code [{}]: {}'.format(check_resp.status_code, check_resp.json()))
             check_data = check_resp.json()
+
+            # Stream the build log output once the build starts
+            if not build_started and check_data['build'] != None:
+                build_started = True
+                click.echo()
+                click.echo()
+                click.echo(click.style('Build {id} Started:'.format(**check_data['build']), fg='yellow'))
+                build_stream = requests.get(check_data['build']['output_stream_url'], stream=True, headers=headers)
+                for chunk in build_stream.iter_content():
+                    click.echo(chunk, nl=False)
+
+            # If app-setup is still pending, sleep and then poll again
             if check_data['status'] != 'pending':
+                bar.update(100)
                 break
-            i += 1
-            bar.update(i)
+            if i < 98:
+                i += 1
+                bar.update(i)
             time.sleep(2)
 
     click.echo()
     # Success
     if check_data['status'] == 'succeeded':
-        click.echo(click.style('Heroku app creation succeeded!', fg='green'))
+        click.echo(click.style('Heroku app creation succeeded!', fg='green', bold=True))
         render_recursive(check_data)
     # Failed
     elif check_data['status'] == 'failed':
-        click.echo(click.style('Heroku app creation failed', fg='red'))
+        click.echo(click.style('Heroku app creation failed', fg='red', bold=True))
         render_recursive(check_data)
+        click.echo()
+        click.echo('Build Info:')
+        resp = requests.get('https://api.heroku.com/builds/{id}'.format(**check_data['build']), headers=headers)
+        render_recursive(resp.json())
         return
     else:
         raise click.ClickException('Received an unknown status from the Heroku app-setups API.  Full API response: {}'.format(check_data))
@@ -193,9 +246,39 @@ def site_create(config, name, shape):
     elif app_shape == 'prod':
         pass
 
-    # Create a superuser
+    click.echo()
+    click.echo(click.style('# Create Admin User', bold=True, fg='blue'))
+    click.echo('You will need an initial admin user to start configuring your new MetaCI site.  Enter a password for the admin user and one will be created for you')
+    password = click.prompt('Password', hide_input=True, confirmation_prompt=True)
     
-    # Set up the github service
+
+    # Create the admin user
+    click.echo()
+    click.echo(click.style('Creating admin user:', fg='yellow'))
+    command = 'python manage.py autoadminuser {FROM_EMAIL}'.format(**env)
+    heroku_app = app = heroku_api.app(check_data['app']['id'])
+    admin_output, dyno = app.run_command(command, printout=True, env={'ADMINUSER_PASS': password})
+    click.echo(admin_output.splitlines()[-1:])
+    
+    # Create the admin user's API token
+    click.echo()
+    click.echo(click.style('Generating API token for admin user:', fg='yellow'))
+    command = 'python manage.py usertoken admin'
+    token_output, dyno = app.run_command(command)
+    for line in token_output.splitlines():
+        if line.startswith('Token: '):
+            api_token = line.replace('Token: ', '', 1).strip()
+
+    if api_token:
+        service = ServiceConfig({
+            'url': env['SITE_URL'],
+            'token': api_token,
+        })
+        config.keychain.set_service('metaci', service)
+        click.echo(click.style('Successfully connected metaci to the new site at {SITE_URL}'.format(**env), fg='green', bold=True))
+    else:
+        click.echo(click.style('Failed to create API connection to new metaci site at {SITE_URL}.  Try metaci site connect'.format(**env), fg='red', bold=True))
+
     
 
 @click.command(name='connect', help='Connects to an existing MetaCI instance')
@@ -204,7 +287,11 @@ def site_connect(config):
     verify_overwrite(config)
     url = click.prompt('Site Base URL')
     click.echo('Contact your MetaCI administrator to get an API Token.  Tokens can be created by administrators in the admin panel under Auth Tokens -> Tokensi.')
-    token = click.prompt('API Token')
+    click.echo(click.style(
+        'NOTE: For security purposes, your input will be hidden.  Paste your API Token and hit Enter to continue.',
+        fg='yellow',
+    ))
+    token = click.prompt('API Token', hide_input=True)
     service = ServiceConfig({
         'url': url,
         'token': token,
