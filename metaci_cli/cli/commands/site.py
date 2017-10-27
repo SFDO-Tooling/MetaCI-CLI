@@ -146,7 +146,7 @@ def site_add(config, name, shape):
     payload = {
         'app': {},
         'source_blob': {
-            'url': 'https://github.com/SalesforceFoundation/mrbelvedereci/tarball/feature/api/',
+            'url': 'https://github.com/SalesforceFoundation/mrbelvedereci/tarball/master/',
        },
     }
     env = {} 
