@@ -167,19 +167,11 @@ def plan_info(config, plan_id):
 
 
 @click.command(name='list', help='Lists plans')
-@click.option('--repo', help="Specify the repo in format OwnerName/RepoName")
 @pass_config
-def plan_list(config, repo):
+def plan_list(config):
     api_client = ApiClient(config)
 
-    params = {}
-
-    # Filter by repository
-    repo_data = lookup_repo(api_client, config, repo)
-    if repo_data:
-        params['repo'] = repo_data['id']
-
-    res = api_client('plans', 'list', params=params)
+    res = api_client('plans', 'list')
 
     plan_list_fmt = '{id:<5} {name:24.24} {org:12.12} {flows:24.24} {type:7.7} {regex}'
     headers = {
@@ -193,6 +185,80 @@ def plan_list(config, repo):
     click.echo(plan_list_fmt.format(**headers))
     for plan in res['results']:
         click.echo(plan_list_fmt.format(**plan))
+
+@click.command(name='repo_add', help='Add a repo to a plan')
+@click.argument('plan_id')
+@click.option('--repo', help='Specify the repo in format OwnerName/RepoName')
+@pass_config
+def plan_repo_add(config, plan_id, repo):
+    api_client = ApiClient(config)
+
+    params = {
+        'id': plan_id,
+    }
+
+    # Look up the plan
+    try:
+        plan_data = api_client('plans', 'read', params=params)
+    except coreapi.exceptions.ErrorMessage as e:
+        raise click.ClickException('Plan with id {} not found. Use metaci plan list to see a list of plans and their ids'.format(plan_id))
+
+    # Filter by repository
+    repo_data = lookup_repo(api_client, config, repo, required=True)
+
+    # Check that we don't already have a matching PlanRepository
+    params = {
+        'plan': plan_id,
+        'repo': repo_data['id'],
+    }
+    res = api_client('plan_repos', 'list', params=params)
+    if res['count']:
+        raise click.ClickException('Repo already added to plan')
+
+    # Create the PlanRepository
+    params = {
+        'plan_id': plan_id,
+        'repo_id': repo_data['id'],
+    }
+    res = api_client('plan_repos', 'create', params=params)
+    click.echo()
+    click.echo('Added repo {repo[owner]}/{repo[name]} to plan {plan[name]}'.format(**res))
+    render_recursive(res)
+
+@click.command(name='repo_list', help='List repos associated with a plan')
+@click.argument('plan_id')
+@pass_config
+def plan_repo_list(config, plan_id):
+    api_client = ApiClient(config)
+
+    params = {
+        'id': plan_id,
+    }
+
+    # Look up the plan
+    try:
+        plan_data = api_client('plans', 'read', params=params)
+    except coreapi.exceptions.ErrorMessage as e:
+        raise click.ClickException('Plan with id {} not found. Use metaci plan list to see a list of plans and their ids'.format(plan_id))
+
+    params = {
+        'plan': plan_id,
+    }
+    res = api_client('plan_repos', 'list', params=params)
+    click.echo()
+    click.echo('Repos associated with plan {}:')
+    repo_list_fmt = '{id:<5} {repo[id]:<6} {repo[name]:32.32} {repo[owner]}'
+    headers = {
+        'id': '#',
+        'repo': {
+            'id': 'Repo #',
+            'name': 'Name',
+            'owner': 'Owner',
+        },
+    }
+    click.echo(repo_list_fmt.format(**headers))
+    for plan_repo in res['results']:
+        click.echo(repo_list_fmt.format(**plan_repo))
 
 @click.command(name='run', help='Run a plan')
 @click.argument('plan_id')
@@ -270,5 +336,7 @@ plan.add_command(plan_add)
 plan.add_command(plan_browser)
 plan.add_command(plan_info)
 plan.add_command(plan_list)
+plan.add_command(plan_repo_add)
+plan.add_command(plan_repo_list)
 plan.add_command(plan_run)
 main.add_command(plan)
