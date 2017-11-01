@@ -70,7 +70,7 @@ def set_app_shape(app, shape, num_workers=None):
         })
         app.batch_scale_formation_processes({
             'web': 1,
-            'dev_worker': 1,
+            'dev_worker': 0,
             'worker': 0,
         })
         formation = app.process_formation()
@@ -146,7 +146,7 @@ def site_add(config, name, shape):
     payload = {
         'app': {},
         'source_blob': {
-            'url': 'https://github.com/SalesforceFoundation/mrbelvedereci/tarball/master/',
+            'url': 'https://github.com/SalesforceFoundation/mrbelvedereci/tarball/feature/redis-pooling/',
        },
     }
     env = {} 
@@ -274,6 +274,7 @@ def site_add(config, name, shape):
             # Stream the build log output once the build starts
             if not build_started and check_data['build'] != None:
                 build_started = True
+                bar.update(100)
                 click.echo()
                 click.echo()
                 click.echo(click.style('Build {id} Started:'.format(**check_data['build']), fg='yellow'))
@@ -324,18 +325,25 @@ def site_add(config, name, shape):
     click.echo()
     click.echo(click.style('Creating admin user:', fg='yellow'))
     command = 'python manage.py autoadminuser {FROM_EMAIL}'.format(**env)
-    admin_output, dyno = app.run_command(command, printout=True, env={'ADMINUSER_PASS': password})
+    admin_output, dyno = heroku_app.run_command(command, printout=True, env={'ADMINUSER_PASS': password})
     click.echo(admin_output.splitlines()[-1:])
     
     # Create the admin user's API token
     click.echo()
     click.echo(click.style('Generating API token for admin user:', fg='yellow'))
     command = 'python manage.py usertoken admin'
-    token_output, dyno = app.run_command(command)
+    token_output, dyno = heroku_app.run_command(command)
     for line in token_output.splitlines():
         if line.startswith('Token: '):
             api_token = line.replace('Token: ', '', 1).strip()
 
+    # Create the scheduled jobs needed by MetaCI
+    click.echo()
+    click.echo(click.style('Creating admin user:', fg='yellow'))
+    command = 'python manage.py metaci_scheduled_jobs'
+    admin_output, dyno = heroku_app.run_command(command, printout=True, env={'ADMINUSER_PASS': password})
+    click.echo(admin_output.splitlines()[-1:])
+    
     if api_token:
         service = ServiceConfig({
             'url': env['SITE_URL'],

@@ -32,11 +32,6 @@ Features
 * Interact with orgs with `metaci org`
 * Interact with plans with `metaci plans`
 
-Connecting to a Site
---------------------
-
-Run `metaci site connect` from inside a CumulusCI project's git repository.  You will be prompted for the Base URL of the site as well as an API Token.  The API Token comes from Django REST Framework's [TokenAuthentication](http://www.django-rest-framework.org/api-guide/authentication/#tokenauthentication).  Admins can go to Token Auth -> Tokens in the site admin to generate tokens for users.
-
 Credits
 ---------
 
