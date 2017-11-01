@@ -26,7 +26,7 @@ Features
 --------
 
 * Auto-detects and loads CumulusCI's configuration when inside a project's local git repository
-* Deploy a MetaCI site to Heroku with `metaci site create`
+* Deploy a MetaCI site to Heroku with `metaci site add`
 * Connect to an existing MetaCI site with `metaci site connect`
 * Interact with builds with `metaci build`
 * Interact with orgs with `metaci org`
