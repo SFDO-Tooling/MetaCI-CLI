@@ -31,6 +31,7 @@ Features
 * Interact with builds with `metaci build`
 * Interact with orgs with `metaci org`
 * Interact with plans with `metaci plans`
+* Interact with services with `metaci services`
 
 Credits
 ---------
