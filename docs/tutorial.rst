@@ -23,6 +23,11 @@ Go to https://github.com/SalesforceFoundation/MetaCI-DF17-Demo-Project and click
 
 Clone the forked repository to your local system.
 
+Creating the Packaging Org
+==========================
+
+For this tutorial, we'll be automating the release of a managed package of our project.  To make this possible, you need a new Developer Edition org which will serve as your packaging org.  In a fresh DE org, go to Setup -> Packages and create a new Unmanaged Package named whatever you want to call your demo project package.  Then, assign a namespace and point it at the Unmanaged Package you just created.
+
 Configure for CumulusCI
 =======================
 
@@ -32,7 +37,7 @@ Create a feature branch to be in line with CumulusCI's feature branch model:
 
     $ git checkout -b feature/cumulusci
 
-Initialize the CumulusCI configuration for the repository:
+Initialize the CumulusCI configuration for the repository.  Use the package name and namespace you used in the packaging org:
 
 .. code-block:: console
 
@@ -46,6 +51,11 @@ Stage and commit the changes:
     $ git commit -m "Configure for CumulusCI"
 
 For now, we'll hold off on pushing the `feature/cumulusci` branch until we get MetaCI set up to build our project.
+
+Connect the Packaging Org
+=========================
+
+Run `cci org connect packaging` and log into the packaging org in the browser window that pops up.  Once you get the 'OK' screen you can close the browser.  Use `cci org list` to verify that the packaging org is now connected to `cci`'s project keychain.
 
 
 Deploy MetaCI to Heroku
