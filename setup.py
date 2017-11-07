@@ -29,7 +29,7 @@ test_requirements = [
 
 setup(
     name='metaci_cli',
-    version='0.1.0',
+    version='0.1.1',
     description="A command line interface for MetaCI, a CI app run on Heroku for Salesforce development projects",
     long_description=readme + '\n\n' + history,
     author="Jason Lantz",
