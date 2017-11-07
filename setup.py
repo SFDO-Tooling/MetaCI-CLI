@@ -14,7 +14,7 @@ with open('HISTORY.rst') as history_file:
 requirements = [
     'Click>=6.0',
     'coreapi-cli==1.0.6',
-    'cumulusci==2.0.0b69',
+    'cumulusci==2.0.0b74',
     'heroku3==3.3.0',
     'requests==2.18.4',
 ]
