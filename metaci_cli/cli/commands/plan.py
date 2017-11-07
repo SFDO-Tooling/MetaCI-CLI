@@ -66,9 +66,8 @@ def plan_add(config):
 
     params = {}
 
-    # Filter by repository
+    # Make sure the local repo exists
     repo_data = lookup_repo(api_client, config, None, required=True)
-    params['repo'] = repo_data['id']
 
     click.echo('# Name and Description')
     click.echo('Provide a name and description of the build plan you are creating')
@@ -135,14 +134,27 @@ def plan_add(config):
         'context': context,    
         'active': active,    
         'public': public,    
-        'repo_id': repo_data['id'],    
     }
 
     res = api_client('plans', 'create', params=params)
 
     click.echo()
-    click.echo('Created plan {} with the following configuration'.format(name))
+    click.echo(
+        click.style(
+            'Created plan {} with the following configuration'.format(name),
+            fg='green',
+        )
+    )
     render_recursive(res)
+
+    click.echo()
+    click.echo('Adding repository {owner}/{name} to plan'.format(**repo_data))
+
+    params = {
+        'repo_id': repo_data['id'],
+        'plan_id': res['id'],
+    }
+    res = api_client('plan_repos', 'create', params=params)
 
 @click.command(name='info', help='Show info for a plan')
 @click.argument('plan_id')
@@ -279,18 +291,6 @@ def plan_run(config, plan_id, branch, commit):
     except coreapi.exceptions.ErrorMessage as e:
         raise click.ClickException('Plan with id {} not found.  Use metaci plan list to see a list of plans and their ids'.format(plan_id))
     
-    # Validate that the plan is on the right repo
-    if config.project_config.repo_name != plan_res['repo']['name']:
-        raise click.ClickException(
-            'Plan {} is against repository {}/{} and your local repository is {}/{}'.format(
-                plan_id,
-                plan_res['repo']['owner'],
-                plan_res['repo']['name'],
-                config.project_config.repo_owner,
-                config.project_config.repo_name,
-            )
-        )
-
     # Look up the rpeo
     repo_data = lookup_repo(api_client, config, None, required=True)
 
