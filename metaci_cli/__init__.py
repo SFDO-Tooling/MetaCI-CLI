@@ -4,4 +4,4 @@
 
 __author__ = """Jason Lantz"""
 __email__ = 'jlantz@salesforce.com'
-__version__ = '0.1.1'
+__version__ = '0.1.2'
