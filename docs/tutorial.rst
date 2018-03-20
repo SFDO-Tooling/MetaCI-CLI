@@ -270,3 +270,33 @@ Thus far we've been working exclusively in `metaci` on the command line.  But ev
     $ metaci build browser 3
     $ metaci site browser
     $ metaci repo browser
+
+MetaCI's Web Admin UI
+^^^^^^^^^^^^^^^^^^^^^
+
+Go to https://<your_app_name>.herokuapp.com/admin and log in using the admin password you set during **metaci site create**.  The MetaCI Web Admin UI provides access to view all data in your MetaCI instance's database.
+
+Configuring Github Authentication
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you want to have users log in via their Github credentials and be able to elevate certain users to see Private builds, you need to configure a Github OAuth App.  MetaCI uses the django-allauth package to handle OAuth logins which can be configured with the following steps:
+
+* Create a Github OAuth App per the instructions here: http://django-allauth.readthedocs.io/en/latest/providers.html#github  MetaCI only needs access to the user information and email for the OAuth application.  No repository rights are needed from the user.
+* Go to the MetaCI Admin UI 
+* Go to Social Accounts -> Social Applications and click the **Add** button
+* Select **GitHub** as the provider, enter the client id and secret key from the Github OAuth App you created, and add the default site to **Chosen Sites**
+
+Github logins should now be configured.  Click **View Site** at the top right of the admin page to return to the site.  Click **Log Out** and try to **Log In** with your Github user.  You should be prompted to grant access to your Github profile and then logged into MetaCI as your Github user.
+
+When you first login as your Github user, you will not have any elevated permissions to do anything special in MetaCI.  To grant yourself permissions, click **Log Out** and follow the steps below to grant your Github user **Supervisor status**.
+
+Granting Permissions to a Github User
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are two main user roles which can be granted to individual users:
+
+* **Staff status**: Staff users can view Private builds, rebuild failed builds, and run new builds.  Staff users are also allowed to use the full text search to search builds.
+* **Superuser status**: Superusers can access the MetaCI Admin UI and manipulate records.  Superusers can also use the MetaCI REST API which is required for use of the MetaCI CLI.
+
+In the Admin UI, go to Users -> Users and click the username's name from the list.  Use the **Staff status** and **Superuser status** checkboxes to grant permissions to the user.
+
