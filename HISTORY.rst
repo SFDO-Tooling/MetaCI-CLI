@@ -2,6 +2,11 @@
 History
 =======
 
+0.1.2 (2018-03-20)
+------------------
+
+- Fix import error for "cli" which was being caused by a misconfiguration in the egg
+
 0.1.1 (2017-11-07)
 ------------------
 
