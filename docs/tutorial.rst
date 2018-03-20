@@ -272,12 +272,12 @@ Thus far we've been working exclusively in `metaci` on the command line.  But ev
     $ metaci repo browser
 
 MetaCI's Web Admin UI
-^^^^^^^^^^^^^^^^^^^^^
+=====================
 
 Go to https://<your_app_name>.herokuapp.com/admin and log in using the admin password you set during **metaci site create**.  The MetaCI Web Admin UI provides access to view all data in your MetaCI instance's database.
 
 Configuring Github Authentication
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+=================================
 
 If you want to have users log in via their Github credentials and be able to elevate certain users to see Private builds, you need to configure a Github OAuth App.  MetaCI uses the django-allauth package to handle OAuth logins which can be configured with the following steps:
 
@@ -291,7 +291,7 @@ Github logins should now be configured.  Click **View Site** at the top right of
 When you first login as your Github user, you will not have any elevated permissions to do anything special in MetaCI.  To grant yourself permissions, click **Log Out** and follow the steps below to grant your Github user **Supervisor status**.
 
 Granting Permissions to a Github User
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+=====================================
 
 There are two main user roles which can be granted to individual users:
 
