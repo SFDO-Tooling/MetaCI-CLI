@@ -2,6 +2,12 @@
 History
 =======
 
+0.1.3 (2018-03-23)
+------------------
+
+- Fix bug in metaci plan repo_add, repo_list, and run commands
+- Add new command: metaci repo plans
+
 0.1.2 (2018-03-20)
 ------------------
 
