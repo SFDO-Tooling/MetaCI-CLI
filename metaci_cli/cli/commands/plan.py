@@ -13,6 +13,19 @@ from metaci_cli.cli.util import render_recursive
 from metaci_cli.cli.config import pass_config
 from metaci_cli.metaci_api import ApiClient
 
+def get_plan(api_client, plan_id):
+    """ Workaround for a bug in plans read which causes failure when looking up by plan id """
+    params = {
+        'id': plan_id
+    }
+
+    # Look up the plan
+    res = api_client('plans', 'list', params=params)
+    if res['count'] == 0:
+        raise click.ClickException('Plan with id {} not found. Use metaci plan list to see a list of plans and their ids'.format(plan_id))
+
+    return res['results'][0]
+
 @click.group('plan')
 def plan():
     pass
@@ -161,21 +174,8 @@ def plan_add(config):
 @pass_config
 def plan_info(config, plan_id):
     api_client = ApiClient(config)
-
-    params = {
-        'id': plan_id
-    }
-
-    # Filter by repository
-    repo_data = lookup_repo(api_client, config, None, required=True)
-    params['repo'] = repo_data['id']
-
-    # Look up the plan
-    res = api_client('plans', 'list', params=params)
-    if res['count'] == 0:
-        raise click.ClickError('Plan with id {} not found for this repository'.format(name))
-
-    click.echo(render_recursive(res['results'][0]))
+    plan = get_plan(api_client, plan_id)
+    click.echo(render_recursive(plan))
 
 
 @click.command(name='list', help='Lists plans')
@@ -205,15 +205,8 @@ def plan_list(config):
 def plan_repo_add(config, plan_id, repo):
     api_client = ApiClient(config)
 
-    params = {
-        'id': plan_id,
-    }
-
     # Look up the plan
-    try:
-        plan_data = api_client('plans', 'read', params=params)
-    except coreapi.exceptions.ErrorMessage as e:
-        raise click.ClickException('Plan with id {} not found. Use metaci plan list to see a list of plans and their ids'.format(plan_id))
+    plan = get_plan(api_client, plan_id)
 
     # Filter by repository
     repo_data = lookup_repo(api_client, config, repo, required=True)
@@ -242,17 +235,7 @@ def plan_repo_add(config, plan_id, repo):
 @pass_config
 def plan_repo_list(config, plan_id):
     api_client = ApiClient(config)
-
-    params = {
-        'id': plan_id,
-    }
-
-    # Look up the plan
-    try:
-        plan_data = api_client('plans', 'read', params=params)
-    except coreapi.exceptions.ErrorMessage as e:
-        raise click.ClickException('Plan with id {} not found. Use metaci plan list to see a list of plans and their ids'.format(plan_id))
-
+    plan = get_plan(api_client, plan_id)
     params = {
         'plan': plan_id,
     }
@@ -280,28 +263,19 @@ def plan_repo_list(config, plan_id):
 @pass_config
 def plan_run(config, plan_id, branch, commit):
     api_client = ApiClient(config)
-
-    params = {
-        'id': plan_id,
-    }
-
-    # Look up the plan
-    try:
-        plan_res = api_client('plans', 'read', params=params)
-    except coreapi.exceptions.ErrorMessage as e:
-        raise click.ClickException('Plan with id {} not found.  Use metaci plan list to see a list of plans and their ids'.format(plan_id))
+    plan = get_plan(api_client, plan_id)
     
-    # Look up the rpeo
+    # Look up the repo
     repo_data = lookup_repo(api_client, config, None, required=True)
 
     # Look up the plan org
     org_params = {
         'repo': repo_data['id'],
-        'name': plan_res['org'],
+        'name': plan['org'],
     }
     org_res = api_client('orgs', 'list', params=org_params)
     if org_res['count'] == 0:
-        raise click.ClickException('The plan org "{}" does not exist in MetaCI.  Use metaci org create to create the org.'.format(plan_res['org']))
+        raise click.ClickException('The plan org "{}" does not exist in MetaCI.  Use metaci org create to create the org.'.format(plan['org']))
     org_data = org_res['results'][0]
 
     # Look up the branch

@@ -13,6 +13,7 @@ from metaci_cli.cli.util import render_recursive
 from metaci_cli.cli.util import require_project_config
 from metaci_cli.cli.config import pass_config
 from metaci_cli.metaci_api import ApiClient
+from metaci_cli.cli.commands.plan import get_plan
 
 @click.group('repo')
 def repo():
@@ -136,8 +137,35 @@ def repo_list(config, owner, repo):
     for repo in res['results']:
         click.echo(repo_list_fmt.format(**repo))
 
+@click.command(name='plans', help='Lists plans connected to this repository')
+@click.option('--repo', help="Specify the repo in format OwnerName/RepoName")
+@pass_config
+def repo_plans(config, repo):
+    api_client = ApiClient(config)
+
+    params = {}
+    repo = lookup_repo(api_client, config, repo, required=True)
+    params['repo'] = repo['id']
+    
+    res = api_client('plan_repos', 'list', params=params)
+
+    plan_list_fmt = '{id:<5} {name:24.24} {org:12.12} {flows:24.24} {type:7.7} {regex}'
+    headers = {
+        'id': '#',
+        'name': 'Status',
+        'org': 'Org',
+        'flows': 'Flows',
+        'type': 'Trigger',
+        'regex': 'Regex',
+    }
+    click.echo(plan_list_fmt.format(**headers))
+    for plan_repo in res['results']:
+        plan = get_plan(api_client, plan_repo['plan']['id'])
+        click.echo(plan_list_fmt.format(**plan))
+
 repo.add_command(repo_browser)
 repo.add_command(repo_add)
 repo.add_command(repo_info)
 repo.add_command(repo_list)
+repo.add_command(repo_plans)
 main.add_command(repo)
