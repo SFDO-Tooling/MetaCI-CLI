@@ -123,9 +123,14 @@ def verify_overwrite(config):
     return service
 
 @click.command(name='browser', help='Opens the MetaCI site in a browser tab')
+@click.option('--admin', is_flag=True, help='Go directly to the MetaCI admin')
 @pass_config
-def site_browser(config):
+def site_browser(config, admin):
     service = check_current_site(config)
+    url = service.url
+    if admin:
+        admin_path = subprocess.check_output(['heroku','config:get', 'DJANGO_ADMIN_URL']).strip()
+        url += '/{}'.format(admin_path)
     click.echo('Opening browser to {}'.format(service.url))
     webbrowser.open(service.url)
 
@@ -224,7 +229,7 @@ def site_add(config, name, shape):
         env['SFDX_HUB_USERNAME'] = click.prompt('Username')
 
     # Get connected app info from CumulusCI keychain
-    connected_app = config.keychain.get_connected_app()
+    connected_app = config.keychain.get_service('connected_app')
     env['CONNECTED_APP_CALLBACK_URL'] = connected_app.callback_url
     env['CONNECTED_APP_CLIENT_ID'] = connected_app.client_id
     env['CONNECTED_APP_CLIENT_SECRET'] = connected_app.client_secret
