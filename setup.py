@@ -24,7 +24,7 @@ with open('HISTORY.rst') as history_file:
 requirements = [
     'Click>=6.0',
     'coreapi-cli==1.0.6',
-    'cumulusci>=2.0.0b87',
+    'cumulusci>=2.0.6',
     'heroku3==3.3.0',
     'requests==2.18.4',
 ]
@@ -39,7 +39,7 @@ test_requirements = [
 
 setup(
     name='metaci_cli',
-    version='0.1.3',
+    version='0.1.4',
     description="A command line interface for MetaCI, a CI app run on Heroku for Salesforce development projects",
     long_description=readme + '\n\n' + history,
     author="Jason Lantz",

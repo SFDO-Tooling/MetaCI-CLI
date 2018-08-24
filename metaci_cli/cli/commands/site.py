@@ -129,7 +129,12 @@ def site_browser(config, admin):
     service = check_current_site(config)
     url = service.url
     if admin:
-        admin_path = subprocess.check_output(['heroku','config:get', 'DJANGO_ADMIN_URL']).strip()
+        if service.app_name:
+            admin_path = subprocess.check_output(
+                ['heroku','config:get', 'DJANGO_ADMIN_URL', '-a '.format(service.app_name)]
+            ).strip()
+        else:
+            admin_path = 'admin'
         url += '/{}'.format(admin_path)
     click.echo('Opening browser to {}'.format(service.url))
     webbrowser.open(service.url)
