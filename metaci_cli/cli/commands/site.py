@@ -156,7 +156,7 @@ def site_add(config, name, shape):
     payload = {
         'app': {},
         'source_blob': {
-            'url': 'https://github.com/SalesforceFoundation/MetaCI/tarball/master/',
+            'url': 'https://github.com/SFDO-Tooling/MetaCI/tarball/master/',
        },
     }
     env = {} 
@@ -310,10 +310,11 @@ def site_add(config, name, shape):
     elif check_data['status'] == 'failed':
         click.echo(click.style('Heroku app creation failed', fg='red', bold=True))
         render_recursive(check_data)
-        click.echo()
-        click.echo('Build Info:')
-        resp = requests.get('https://api.heroku.com/builds/{id}'.format(**check_data['build']), headers=headers)
-        render_recursive(resp.json())
+        if check_data['build']:
+            click.echo()
+            click.echo('Build Info:')
+            resp = requests.get('https://api.heroku.com/builds/{id}'.format(**check_data['build']), headers=headers)
+            render_recursive(resp.json())
         return
     else:
         raise click.ClickException('Received an unknown status from the Heroku app-setups API.  Full API response: {}'.format(check_data))

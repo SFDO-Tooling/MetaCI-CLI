@@ -11,8 +11,8 @@ import click
 import pkg_resources
 import requests
 
-from cumulusci.core.config import YamlGlobalConfig
-from cumulusci.core.config import YamlProjectConfig
+from cumulusci.core.config import BaseGlobalConfig
+from cumulusci.core.config import BaseProjectConfig
 from cumulusci.core.exceptions import NotInProject
 from cumulusci.core.exceptions import ProjectConfigNotFound
 from cumulusci.core.utils import import_class
@@ -25,7 +25,7 @@ def dbm_cache():
     """
     config_dir = os.path.join(
         os.path.expanduser('~'),
-        YamlGlobalConfig.config_local_dir,
+        BaseGlobalConfig.config_local_dir,
     )
         
     if not os.path.exists(config_dir):
@@ -86,7 +86,7 @@ class CliConfig(object):
         
     def _load_global_config(self):
         try:
-            self._global_config = YamlGlobalConfig()
+            self._global_config = BaseGlobalConfig()
         except NotInProject as e:
             raise click.ClickException(e.message)
 
@@ -109,7 +109,8 @@ class CliConfig(object):
         # Set the keychain to lazy mode on the project so the first reference
         # to self.keychain doesn't actually initialize the keychain but 
         # subsequent calls will
-        self._project_config.keychain = get_dict_attr(self, 'keychain')
+        if self._project_config is not None:
+            self._project_config.keychain = get_dict_attr(self, 'keychain')
 
     @property
     def keychain(self):
