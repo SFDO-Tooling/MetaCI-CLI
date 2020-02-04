@@ -2,7 +2,7 @@
 MetaCI CLI
 ==========
 
-This application has been **deprecated** and will most likely be replaced with extensions to CumulusCI. Contact the CumulusCI team if you need further information.
+This application has been **deprecated** because it is incompatible with modern versions of MetaCI. It will most likely be replaced with extensions to CumulusCI. Contact the CumulusCI team if you need further information.
 
 .. image:: https://img.shields.io/pypi/v/metaci_cli.svg
         :target: https://pypi.python.org/pypi/metaci_cli
